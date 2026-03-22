@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Earthquake Ticker</title>
+<title>Earthquake Compact Ticker</title>
 
 <style>
 body {
@@ -13,33 +13,38 @@ body {
 
 #container {
     width: 1920px;
-    height: 120px;
-    background: rgba(0,0,0,0.7);
+    height: 70px;
+    background: rgba(0,0,0,0.75);
     display: flex;
     overflow: hidden;
 }
 
 .box {
     flex: 1;
-    padding: 10px 15px;
-    color: white;
-    border-right: 1px solid rgba(255,255,255,0.15);
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    transition: transform 0.4s ease, opacity 0.4s ease;
+    align-items: center;
+    padding: 5px 10px;
+    border-right: 1px solid rgba(255,255,255,0.15);
+    color: white;
 }
 
+/* MAGNITUDE */
 .mag {
-    font-size: 32px;
+    font-size: 42px;
     font-weight: bold;
-    line-height: 1;
+    margin-right: 15px;
+    min-width: 70px;
+}
+
+/* TEXT BLOK */
+.info {
+    flex: 1;
+    overflow: hidden;
 }
 
 .loc {
     font-size: 16px;
     font-weight: bold;
-    margin-top: 5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -47,8 +52,19 @@ body {
 
 .depth {
     font-size: 14px;
-    font-weight: bold;
     opacity: 0.85;
+}
+
+/* TIME BADGE */
+.time {
+    background: rgba(255,255,255,0.9);
+    color: black;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    margin-left: 10px;
+    white-space: nowrap;
 }
 
 </style>
@@ -62,6 +78,17 @@ body {
 
 let earthquakes = [];
 
+/* výpočet "X min ago" */
+function getTimeAgo(timestamp) {
+    const now = Date.now();
+    const diff = Math.floor((now - timestamp) / 60000);
+
+    if (diff < 1) return "Just now";
+    if (diff === 1) return "1 min ago";
+    return diff + " min ago";
+}
+
+/* fetch USGS */
 async function fetchData() {
     try {
         const res = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson");
@@ -73,69 +100,71 @@ async function fetchData() {
             .map(eq => ({
                 mag: eq.properties.mag ? eq.properties.mag.toFixed(1) : "0.0",
                 place: eq.properties.place,
-                depth: eq.geometry.coordinates[2].toFixed(1)
+                depth: eq.geometry.coordinates[2].toFixed(1),
+                time: eq.properties.time
             }));
 
         updateTicker(newData);
 
     } catch (e) {
-        console.error("Fetch error:", e);
+        console.error(e);
     }
 }
 
+/* update logika */
 function updateTicker(newData) {
 
-    const container = document.getElementById("container");
-
-    // prvé naplnenie
     if (earthquakes.length === 0) {
         earthquakes = newData;
         render();
         return;
     }
 
-    // ak je nové zemetrasenie iné než prvé → shift
-    if (newData[0].place !== earthquakes[0].place || newData[0].mag !== earthquakes[0].mag) {
-
-        earthquakes.unshift(newData[0]); // pridaj nové na začiatok
-        earthquakes = earthquakes.slice(0, 6); // drž len 6
-
-        render(true);
+    // kontrola nového quake
+    if (newData[0].time !== earthquakes[0].time) {
+        earthquakes.unshift(newData[0]);
+        earthquakes = earthquakes.slice(0, 6);
+        render();
     }
 }
 
-function render(animate = false) {
-
+/* render */
+function render() {
     const container = document.getElementById("container");
     container.innerHTML = "";
 
-    earthquakes.forEach((eq, index) => {
+    earthquakes.forEach(eq => {
 
         const box = document.createElement("div");
         box.className = "box";
 
-        if (animate) {
-            box.style.transform = "translateX(-20px)";
-            box.style.opacity = "0";
-            setTimeout(() => {
-                box.style.transform = "translateX(0)";
-                box.style.opacity = "1";
-            }, 50);
-        }
-
         box.innerHTML = `
             <div class="mag">${eq.mag}</div>
-            <div class="loc">${eq.place}</div>
-            <div class="depth">Depth: ${eq.depth} km</div>
+            <div class="info">
+                <div class="loc">${eq.place}</div>
+                <div class="depth">Depth: ${eq.depth} km</div>
+            </div>
+            <div class="time" data-time="${eq.time}">
+                ${getTimeAgo(eq.time)}
+            </div>
         `;
 
         container.appendChild(box);
     });
 }
 
-// init
+/* každú minútu refresh text času */
+function updateTimes() {
+    document.querySelectorAll(".time").forEach(el => {
+        const t = parseInt(el.getAttribute("data-time"));
+        el.textContent = getTimeAgo(t);
+    });
+}
+
+/* init */
 fetchData();
 setInterval(fetchData, 60000);
+setInterval(updateTimes, 60000);
 
 </script>
 
