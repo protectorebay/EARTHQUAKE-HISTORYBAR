@@ -2,41 +2,50 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Earthquake Compact Ticker</title>
+<title>Earthquake Scroll Ticker</title>
 
 <style>
 body {
     margin: 0;
     background: transparent;
+    overflow: hidden;
     font-family: Arial, sans-serif;
 }
 
-#container {
-    width: 1920px;
+/* VIEWPORT (OBS si oreže šírku) */
+#viewport {
+    width: 100%;
     height: 70px;
-    background: rgba(0,0,0,0.75);
-    display: flex;
     overflow: hidden;
+    background: rgba(0,0,0,0.75);
 }
 
+/* TRACK ktorý sa hýbe */
+#track {
+    display: flex;
+    width: max-content;
+    animation: scroll 40s linear infinite;
+}
+
+/* BOX */
 .box {
-    flex: 1;
     display: flex;
     align-items: center;
-    padding: 5px 10px;
-    border-right: 1px solid rgba(255,255,255,0.15);
+    padding: 5px 20px;
     color: white;
+    border-right: 1px solid rgba(255,255,255,0.15);
+    min-width: 320px;
 }
 
-/* MAGNITUDE */
+/* MAG */
 .mag {
-    font-size: 42px;
+    font-size: 40px;
     font-weight: bold;
     margin-right: 15px;
-    min-width: 70px;
+    min-width: 65px;
 }
 
-/* TEXT BLOK */
+/* INFO */
 .info {
     flex: 1;
     overflow: hidden;
@@ -55,7 +64,7 @@ body {
     opacity: 0.85;
 }
 
-/* TIME BADGE */
+/* TIME */
 .time {
     background: rgba(255,255,255,0.9);
     color: black;
@@ -67,18 +76,26 @@ body {
     white-space: nowrap;
 }
 
+/* ANIMÁCIA */
+@keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
 </style>
 </head>
 
 <body>
 
-<div id="container"></div>
+<div id="viewport">
+    <div id="track"></div>
+</div>
 
 <script>
 
 let earthquakes = [];
 
-/* výpočet "X min ago" */
+/* čas */
 function getTimeAgo(timestamp) {
     const now = Date.now();
     const diff = Math.floor((now - timestamp) / 60000);
@@ -88,13 +105,13 @@ function getTimeAgo(timestamp) {
     return diff + " min ago";
 }
 
-/* fetch USGS */
+/* fetch */
 async function fetchData() {
     try {
         const res = await fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson");
         const data = await res.json();
 
-        const newData = data.features
+        earthquakes = data.features
             .sort((a, b) => b.properties.time - a.properties.time)
             .slice(0, 6)
             .map(eq => ({
@@ -104,41 +121,23 @@ async function fetchData() {
                 time: eq.properties.time
             }));
 
-        updateTicker(newData);
+        render();
 
     } catch (e) {
         console.error(e);
     }
 }
 
-/* update logika */
-function updateTicker(newData) {
-
-    if (earthquakes.length === 0) {
-        earthquakes = newData;
-        render();
-        return;
-    }
-
-    // kontrola nového quake
-    if (newData[0].time !== earthquakes[0].time) {
-        earthquakes.unshift(newData[0]);
-        earthquakes = earthquakes.slice(0, 6);
-        render();
-    }
-}
-
-/* render */
+/* render + DUPLIKÁCIA kvôli loopu */
 function render() {
-    const container = document.getElementById("container");
-    container.innerHTML = "";
+    const track = document.getElementById("track");
+    track.innerHTML = "";
+
+    let content = "";
 
     earthquakes.forEach(eq => {
-
-        const box = document.createElement("div");
-        box.className = "box";
-
-        box.innerHTML = `
+        content += `
+        <div class="box">
             <div class="mag">${eq.mag}</div>
             <div class="info">
                 <div class="loc">${eq.place}</div>
@@ -147,13 +146,14 @@ function render() {
             <div class="time" data-time="${eq.time}">
                 ${getTimeAgo(eq.time)}
             </div>
-        `;
-
-        container.appendChild(box);
+        </div>`;
     });
+
+    // DUPLIKÁCIA → seamless scroll
+    track.innerHTML = content + content;
 }
 
-/* každú minútu refresh text času */
+/* update časov */
 function updateTimes() {
     document.querySelectorAll(".time").forEach(el => {
         const t = parseInt(el.getAttribute("data-time"));
